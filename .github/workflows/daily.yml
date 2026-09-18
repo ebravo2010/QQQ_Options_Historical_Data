@@ -1,0 +1,59 @@
+name: QQQ Options Daily Collection
+
+on:
+  schedule:
+    # 20:30 UTC = 4:30 PM New York during daylight saving time
+    - cron: "30 20 * * 1-5"
+
+    # 21:30 UTC = 4:30 PM New York during standard time
+    - cron: "30 21 * * 1-5"
+
+  # Allows you to test it manually
+  workflow_dispatch:
+
+jobs:
+  collect-options:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Check New York time
+        id: check_time
+        run: |
+          CURRENT_TIME=$(TZ=America/New_York date +'%H:%M')
+          CURRENT_DAY=$(TZ=America/New_York date +'%u')
+
+          echo "New York time: $CURRENT_TIME"
+          echo "New York day: $CURRENT_DAY"
+
+          if [ "$CURRENT_TIME" = "16:30" ] && [ "$CURRENT_DAY" -le 5 ]; then
+            echo "run_job=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_job=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run options collector
+        if: steps.check_time.outputs.run_job == 'true'
+        run: python main.py
+
+      - name: Install Google Drive packages
+        if: steps.check_time.outputs.run_job == 'true'
+        run: |
+          pip install google-api-python-client google-auth
+
+      - name: Upload Parquet file to Google Drive
+        if: steps.check_time.outputs.run_job == 'true'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python upload_to_drive.py
