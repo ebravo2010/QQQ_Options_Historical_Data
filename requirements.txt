@@ -2,5 +2,3 @@ yfinance
 pyarrow
 numpy
 pandas
-google-api-python-client
-google-auth
